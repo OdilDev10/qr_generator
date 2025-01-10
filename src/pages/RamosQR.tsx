@@ -4,12 +4,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import peticion from "@/services/axiosConfig";
-import { MoonIcon, SunIcon } from "lucide-react";
+import { MoonIcon, QrCode, SunIcon } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 // import { FaFacebook, FaGlobe, FaInstagram, FaLinkedin, FaWhatsapp } from 'react-icons/fa'
 import Swal from "sweetalert2";
 import { z } from "zod";
+import { saveAs } from "file-saver";
 
 // Esquema Zod para validar datos
 export const QRSchema = z.object({
@@ -29,12 +30,14 @@ export type IQR = z.infer<typeof QRSchema>;
 interface IPagination {
   page: number;
   limit: number;
-  param: string;
+  search_term: string;
+  total: number;
 }
 
 const urlServer = "http://localhost:8000/api/ramos_qr/permalink/";
 
 const RamosQR = () => {
+  const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout | null>(null);
   const [darkMode, setDarkMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpenModal, setIsOpenModal] = useState(false);
@@ -44,8 +47,9 @@ const RamosQR = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pagination, setPagination] = useState<IPagination>({
     page: 1,
-    limit: 10,
-    param: "",
+    limit: 6,
+    search_term: "",
+    total: 0,
   });
   const [formValues, setFormValues] = useState<IQR>({
     name: "",
@@ -66,14 +70,17 @@ const RamosQR = () => {
 
     try {
       const response = await peticion.get(
-        `/ramos_qr?page=${pagination.page}&limit=${pagination.limit}&param=${pagination.param}`
+        `/ramos_qr?page=${pagination.page}&limit=${pagination.limit}&search_term=${pagination.search_term}`
       );
-      setAllQR(response.data?.data);
-      setPagination({
-        ...pagination,
-        page: response.data?.pagination?.page,
-        limit: response.data?.pagination?.limit,
-      });
+      if (response.data?.status_code == 200) {
+        setAllQR(response.data?.data);
+        setPagination({
+          ...pagination,
+          page: response.data?.pagination?.page,
+          limit: response.data?.pagination?.limit,
+          total: response.data?.pagination?.total,
+        });
+      }
     } catch (error) {
       console.error("Error al obtener QR:", error);
       Swal.fire("Error", "No se pudieron obtener los QR", "error");
@@ -140,12 +147,16 @@ const RamosQR = () => {
     }
   };
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    const handleSearch = setTimeout(() => {
-      handleGetAllQR({ ...pagination, param: value });
+  const handleSearch = (value: string) => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+
+    const newTimeoutId = setTimeout(() => {
+      handleGetAllQR({ ...pagination, search_term: value });
     }, 600);
-    clearTimeout(handleSearch);
+
+    setTimeoutId(newTimeoutId);
   };
 
   useEffect(() => {
@@ -161,13 +172,13 @@ const RamosQR = () => {
     "errors"
   );
   return (
-    <div className="min-h-screen max-w-6xl m-auto flex flex-col gap-3 bg-gray-100 dark:bg-gray-900 p-4 text-gray-800 dark:text-gray-100">
+    <div className="min-h-screen max-w-6xl w-auto m-auto flex flex-col gap-3 bg-gray-100 dark:bg-gray-700 p-4 text-gray-800 dark:text-gray-100">
       <CustomModal
         isOpen={isOpenModal}
         onClose={function (): void {
           setIsOpenModal(false);
         }}
-        title={"QR"}
+        title={selectedQr?.name + " - " + selectedQr?.category}
         children={
           <>
             <div>
@@ -177,7 +188,7 @@ const RamosQR = () => {
         }
       />
       {/* Hero Section */}
-      <div className="flex flex-col items-center justify-center py-16 px-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white rounded-b-lg shadow-md">
+      <div className="flex flex-col items-center justify-center py-16 px-4 bg-gradient-to-r from-blue-500 via-emerald-500 to-blue-500 text-white rounded-b-lg shadow-md">
         <h1 className="text-4xl font-bold mb-4">Ramos QR</h1>
         <p className="text-lg text-center max-w-md">
           Simplifica la gestión de tus códigos QR con una interfaz minimalista y
@@ -296,12 +307,17 @@ const RamosQR = () => {
         <div className="max-w-2xl mx-auto flex gap-4 items-center">
           <Input
             type="text"
-            onChange={handleSearch}
+            onChange={(e) => {
+              handleSearch(e.target.value);
+            }}
             placeholder="Buscar QR..."
-            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring focus:ring-indigo-300 dark:border-gray-700 dark:bg-gray-800 dark:focus:ring-indigo-500"
+            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring focus:ring-blue-300 dark:border-gray-700 dark:bg-gray-800 dark:focus:ring-blue-500"
           />
           <Button
-            onClick={() => setIsCreatingOrEditing(true)}
+            onClick={() => {
+              setIsCreatingOrEditing(true);
+              setSelectedQr(null);
+            }}
             disabled={isLoading}
           >
             Crear
@@ -310,7 +326,7 @@ const RamosQR = () => {
           <div>
             <Button
               onClick={toggleDarkMode}
-              className="p-2 rounded-full bg-gray-200 dark:bg-gray-800 shadow"
+              className="p-2 rounded-full bg-gray-200 hover:bg-gray-300 dark:bg-gray-800 hover:dark:bg-gray-900 shadow"
             >
               {darkMode ? (
                 <SunIcon className="h-6 w-6 text-yellow-400" />
@@ -322,33 +338,58 @@ const RamosQR = () => {
         </div>
       </div>
 
-      {/* Tabla */}
-      <div className="px-4">
-        <table className="min-w-full text-left bg-white dark:bg-gray-800 rounded-lg shadow">
+      <div className="px-4 max-w-3xl">
+        {/* Tabla */}
+        <table className="min-w-full text-left bg-white dark:bg-gray-800 hover:dark:bg-gray-900 rounded-lg shadow-lg ">
           <thead className="bg-gray-200 dark:bg-gray-700">
             <tr>
-              <th className="px-4 py-2">ID</th>
-              <th className="px-4 py-2">URL (Para compartir)</th>
-              <th className="px-4 py-2">Categoría</th>
-              <th className="px-4 py-2">URL destino (Hacia donde va)</th>
-              <th className="px-4 py-2">Acciones</th>
+              <th className="px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                ID
+              </th>
+              <th className="px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                Nombre
+              </th>
+              <th className="px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                URL (Para compartir)
+              </th>
+              <th className="px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                Categoría
+              </th>
+              <th className="px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                URL destino (Hacia donde va)
+              </th>
+              <th className="px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                Acciones
+              </th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="   overflow-x-auto ">
             {allQR?.map((qr) => (
-              <tr key={qr?.id} className="border-t dark:border-gray-700">
-                <td className="px-4 py-2">{qr?.id}</td>
-                <td className="px-4 py-2">
+              <tr
+                key={qr?.id}
+                className="border-t dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <td className="px-4 py-2 text-sm text-gray-800 dark:text-gray-200">
+                  {qr?.id}
+                </td>
+                <td className="px-4 py-2 text-sm text-gray-800 dark:text-gray-200 truncate max-w-[150px]">
+                  {qr?.name}
+                </td>
+                <td className="px-4 py-2 text-sm text-gray-800 dark:text-gray-200 truncate max-w-[200px]">
                   <a
                     href={`${urlServer}${qr?.category || ""}/${qr?.name || ""}`}
-                    target="_blanck"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline"
                   >
                     Copiar
                   </a>
                 </td>
-                <td className="px-4 py-2">{qr?.category}</td>
-                <td className="px-4 py-2">{qr?.urlToRedirect}</td>
-                <td className="px-4 py-2 flex gap-2">
+                <td className="px-4 py-2 text-sm text-gray-800 dark:text-gray-200">
+                  {qr?.category}
+                </td>
+                <td>{qr?.urlToRedirect}</td>
+                <td className="px-4 py-2 flex   gap-2">
                   <Button
                     onClick={() => {
                       setSelectedQr(qr);
@@ -356,12 +397,14 @@ const RamosQR = () => {
                       setFormValues(qr);
                     }}
                     disabled={isLoading}
+                    className="px-3 py-1 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600"
                   >
                     Editar
                   </Button>
                   <Button
                     onClick={() => handleDeleteQR(qr?.id || 0)}
                     disabled={isLoading}
+                    className="px-3 py-1 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600"
                   >
                     Eliminar
                   </Button>
@@ -371,6 +414,7 @@ const RamosQR = () => {
                       setSelectedQr(qr);
                     }}
                     disabled={isLoading}
+                    className="px-3 py-1 text-sm bg-gray-500 text-white rounded-lg hover:bg-gray-600"
                   >
                     Ver
                   </Button>
@@ -381,33 +425,39 @@ const RamosQR = () => {
         </table>
 
         {/* Paginación */}
-        <div className="flex justify-center gap-4 items-center mt-4">
-          {/* Botón Anterior */}
+        <div className="mt-4 flex items-center justify-between">
           <Button
             onClick={() => {
               if (pagination.page > 1) {
-                setPagination((prev) => ({ ...prev, page: prev.page - 1 }));
+                const newPage = pagination.page - 1;
+                setPagination({ ...pagination, page: newPage });
+                handleGetAllQR({ ...pagination, page: newPage });
               }
             }}
             disabled={pagination.page === 1}
-            className="px-3 py-1 text-sm bg-gray-300 dark:bg-gray-700 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-600"
+            className="px-3 py-1 text-sm  rounded-lg   disabled:opacity-50"
           >
             Anterior
           </Button>
-
-          {/* Indicador de Página */}
-          <span className="text-gray-700 dark:text-gray-300">
-            Página {pagination.page}
+          <span className="text-sm text-gray-700 dark:text-gray-300">
+            Página {pagination.page} de{" "}
+            {Math.ceil(pagination?.total / pagination.limit)}
           </span>
-
-          {/* Botón Siguiente */}
           <Button
             onClick={() => {
-              setPagination((prev) => ({ ...prev, page: prev.page + 1 }));
+              if (
+                pagination.page <
+                Math.ceil(pagination?.total / pagination.limit)
+              ) {
+                const newPage = pagination.page + 1;
+                setPagination({ ...pagination, page: newPage });
+                handleGetAllQR({ ...pagination, page: newPage });
+              }
             }}
-            // disabled={pagination.page === 1}
-
-            className="px-3 py-1 text-sm bg-gray-300 dark:bg-gray-700 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-600"
+            disabled={
+              pagination.page >= Math.ceil(pagination?.total / pagination.limit)
+            }
+            className="px-3 py-1 text-sm  rounded-lg  "
           >
             Siguiente
           </Button>
@@ -421,43 +471,71 @@ export default RamosQR;
 
 type QRGeneratorProps = {
   link: string;
-  // icons: "facebook" | "instagram" | "linkedin" | "whatsapp" | "web";
   styles?: React.CSSProperties;
   size?: number;
+  bgColor?: string;
+  fgColor?: string;
 };
 
+// import html2canvas from "html2canvas";
 const QRGenerator: React.FC<QRGeneratorProps> = ({
   link,
   // icons,
   styles,
   size = 256,
+  bgColor = "#ffffff",
+  fgColor = "#00a2df",
 }) => {
   const iconSize = size * 0.15; // Proporcional al tamaño del QR
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Descargar QR como imagen
+  const handleDownloadQR = () => {
+    const canvas = qrCanvasRef.current;
+    if (canvas) {
+      canvas.toBlob((blob) => {
+        if (blob) {
+          saveAs(blob, "qr-code.png"); // Descarga el archivo como "qr-code.png"
+        }
+      });
+    }
+  };
   return (
-    <div
-      className="relative flex items-center justify-center"
-      style={{ ...styles }}
-    >
-      {/* QR Code */}
-      <QRCodeCanvas
-        value={link}
-        size={size}
-        bgColor="#ffffff"
-        fgColor="#000000"
-        level="H" // Nivel de corrección de errores alto
-        includeMargin={true}
-      />
-      {/* Ícono en el centro */}
+    <div className="flex flex-col gap-4 items-center">
       <div
-        className="absolute flex items-center justify-center bg-white rounded-full"
-        style={{
-          width: iconSize + 16,
-          height: iconSize + 16,
-        }}
+        className="relative flex items-center justify-center"
+        style={{ ...styles }}
       >
-        {/* Icono */}
+        {/* QR Code */}
+        <QRCodeCanvas
+          value={link}
+          size={size}
+          bgColor={bgColor}
+          fgColor={fgColor}
+          level="H" // Nivel de corrección de errores alto
+          marginSize={2}
+          ref={qrCanvasRef}
+        />
+        {/* Ícono en el centro */}
+        <div
+          className="absolute flex items-center justify-center bg-white rounded-full"
+          style={{
+            // width: iconSize + 16,
+            // height: iconSize + 16,
+            width: iconSize + 14,
+            height: iconSize + 14,
+          }}
+        >
+          <QrCode size={35} className="text-teal-400" />
+          {/* Icono */}
+        </div>
       </div>
+      <Button
+        onClick={handleDownloadQR}
+        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+      >
+        Descargar QR
+      </Button>
     </div>
   );
 };
