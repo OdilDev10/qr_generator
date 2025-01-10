@@ -12,6 +12,9 @@ import Swal from "sweetalert2";
 import { z } from "zod";
 import { saveAs } from "file-saver";
 
+const { VITE_DEV_URL, VITE_PRODUCTION_URL, VITE_DEBUG } = import.meta.env;
+const URL_PETICION = VITE_DEBUG == "true" ? VITE_DEV_URL : VITE_PRODUCTION_URL;
+
 // Esquema Zod para validar datos
 export const QRSchema = z.object({
   id: z.number().min(1).optional(),
@@ -34,7 +37,7 @@ interface IPagination {
   total: number;
 }
 
-const urlServer = "http://localhost:8000/api/ramos_qr/permalink/";
+const urlServer = `${URL_PETICION}/ramos_qr/permalink/`;
 
 const RamosQR = () => {
   const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout | null>(null);
