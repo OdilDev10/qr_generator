@@ -10,7 +10,6 @@ const peticion = axios.create({
     Authorization: `${getToken()}`,
     "Content-Type": "application/json",
   },
-  withCredentials: true,
 });
 
 export default peticion;
