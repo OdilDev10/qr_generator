@@ -175,7 +175,7 @@ const RamosQR = () => {
     "errors"
   );
   return (
-    <div className="min-h-screen max-w-6xl w-auto m-auto flex flex-col gap-3 bg-gray-100 dark:bg-gray-700 p-4 text-gray-800 dark:text-gray-100">
+    <div className="min-h-screen max-w-6xl w-full mx-auto flex flex-col gap-3 bg-gray-100 dark:bg-gray-700 p-4 text-gray-800 dark:text-gray-100">
       <CustomModal
         isOpen={isOpenModal}
         onClose={function (): void {
@@ -341,9 +341,9 @@ const RamosQR = () => {
         </div>
       </div>
 
-      <div className="px-4 max-w-3xl">
+      <div className="px-4 max-w-3xl overflow-x-auto mx-auto w-full sm:w-[80%] pb-3 ">
         {/* Tabla */}
-        <table className="min-w-full text-left bg-white dark:bg-gray-800 hover:dark:bg-gray-900 rounded-lg shadow-lg ">
+        <table className="min-w-full  text-left bg-white dark:bg-gray-800 hover:dark:bg-gray-900 rounded-lg shadow-lg ">
           <thead className="bg-gray-200 dark:bg-gray-700">
             <tr>
               <th className="px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
@@ -366,7 +366,7 @@ const RamosQR = () => {
               </th>
             </tr>
           </thead>
-          <tbody className="   overflow-x-auto ">
+          <tbody className="    ">
             {allQR?.map((qr) => (
               <tr
                 key={qr?.id}
@@ -426,45 +426,43 @@ const RamosQR = () => {
             ))}
           </tbody>
         </table>
-
-        {/* Paginación */}
-        <div className="mt-4 flex items-center justify-between">
-          <Button
-            onClick={() => {
-              if (pagination.page > 1) {
-                const newPage = pagination.page - 1;
-                setPagination({ ...pagination, page: newPage });
-                handleGetAllQR({ ...pagination, page: newPage });
-              }
-            }}
-            disabled={pagination.page === 1}
-            className="px-3 py-1 text-sm  rounded-lg   disabled:opacity-50"
-          >
-            Anterior
-          </Button>
-          <span className="text-sm text-gray-700 dark:text-gray-300">
-            Página {pagination.page} de{" "}
-            {Math.ceil(pagination?.total / pagination.limit)}
-          </span>
-          <Button
-            onClick={() => {
-              if (
-                pagination.page <
-                Math.ceil(pagination?.total / pagination.limit)
-              ) {
-                const newPage = pagination.page + 1;
-                setPagination({ ...pagination, page: newPage });
-                handleGetAllQR({ ...pagination, page: newPage });
-              }
-            }}
-            disabled={
-              pagination.page >= Math.ceil(pagination?.total / pagination.limit)
+      </div>
+      {/* Paginación */}
+      <div className="max-w-3xl mt-4 flex items-center mx-auto gap-11">
+        <Button
+          onClick={() => {
+            if (pagination.page > 1) {
+              const newPage = pagination.page - 1;
+              setPagination({ ...pagination, page: newPage });
+              handleGetAllQR({ ...pagination, page: newPage });
             }
-            className="px-3 py-1 text-sm  rounded-lg  "
-          >
-            Siguiente
-          </Button>
-        </div>
+          }}
+          disabled={pagination.page === 1}
+          className="px-3 py-1 text-sm  rounded-lg   disabled:opacity-50"
+        >
+          Anterior
+        </Button>
+        <span className="text-sm text-gray-700 dark:text-gray-300">
+          Página {pagination.page} de{" "}
+          {Math.ceil(pagination?.total / pagination.limit)}
+        </span>
+        <Button
+          onClick={() => {
+            if (
+              pagination.page < Math.ceil(pagination?.total / pagination.limit)
+            ) {
+              const newPage = pagination.page + 1;
+              setPagination({ ...pagination, page: newPage });
+              handleGetAllQR({ ...pagination, page: newPage });
+            }
+          }}
+          disabled={
+            pagination.page >= Math.ceil(pagination?.total / pagination.limit)
+          }
+          className="px-3 py-1 text-sm  rounded-lg  "
+        >
+          Siguiente
+        </Button>
       </div>
     </div>
   );
