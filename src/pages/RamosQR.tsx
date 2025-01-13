@@ -97,13 +97,19 @@ const RamosQR = () => {
       QRSchema.parse(formValues);
       setErrors({});
 
+      const formattedFormValues = {
+        ...formValues,
+        url: formValues.url.replace(/\s+/g, "_"), // Reemplaza espacios por guiones bajos
+      };
+
       if (selectedQr?.id) {
         // Editar QR
-        await peticion.put(`/ramos_qr/${selectedQr?.id}`, formValues);
+
+        await peticion.put(`/ramos_qr/${selectedQr?.id}`, formattedFormValues);
         Swal.fire("Éxito", "QR editado correctamente", "success");
       } else {
         // Crear QR
-        await peticion.post("/ramos_qr", formValues);
+        await peticion.post("/ramos_qr", formattedFormValues);
         Swal.fire("Éxito", "QR creado correctamente", "success");
       }
 
@@ -141,9 +147,22 @@ const RamosQR = () => {
   // Eliminar QR
   const handleDeleteQR = async (id: number) => {
     try {
-      await peticion.delete(`/ramos_qr/${id}`);
-      Swal.fire("Éxito", "QR eliminado correctamente", "success");
-      handleGetAllQR(pagination); // Refrescar la lista
+      Swal.fire({
+        title: "¿Estás seguro?",
+        text: "Esta acción no se puede deshacer.",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#3085d6",
+        cancelButtonColor: "#d33",
+        confirmButtonText: "Sí, eliminar",
+        cancelButtonText: "Cancelar",
+      }).then(async (result) => {
+        if (result.isConfirmed) {
+          await peticion.delete(`/ramos_qr/${id}`);
+          Swal.fire("Éxito", "QR eliminado correctamente", "success");
+          handleGetAllQR(pagination);
+        }
+      });
     } catch (error) {
       console.error("Error al eliminar QR:", error);
       Swal.fire("Error", "No se pudo eliminar el QR", "error");
@@ -166,14 +185,13 @@ const RamosQR = () => {
     handleGetAllQR(pagination);
   }, []);
 
-  console.log(
-    selectedQr,
-    "selectedQr",
-    formValues,
-    "formValues",
-    errors,
-    "errors"
-  );
+  useEffect(() => {
+    setFormValues({
+      ...formValues,
+      url: `${urlServer}${formValues?.category}`,
+    });
+  }, [formValues?.category]);
+
   return (
     <div className="min-h-screen max-w-6xl w-full mx-auto flex flex-col gap-3 bg-gray-100 dark:bg-gray-700 p-4 text-gray-800 dark:text-gray-100">
       <CustomModal
@@ -185,7 +203,7 @@ const RamosQR = () => {
         children={
           <>
             <div>
-              <QRGenerator link={selectedQr?.urlToRedirect || ""} />
+              <QRGenerator link={`${selectedQr?.url}`} />
             </div>
           </>
         }
@@ -341,9 +359,9 @@ const RamosQR = () => {
         </div>
       </div>
 
-      <div className="px-4 max-w-3xl overflow-x-auto mx-auto w-full sm:w-[80%] pb-3 ">
+      <div className="px-4  overflow-x-auto mx-auto w-full pb-3 ">
         {/* Tabla */}
-        <table className="min-w-full  text-left bg-white dark:bg-gray-800 hover:dark:bg-gray-900 rounded-lg shadow-lg ">
+        <table className="min-w-full  text-left bg-white dark:bg-gray-800 hover:dark:bg-gray-900 shadow-lg rounded-2xl ">
           <thead className="bg-gray-200 dark:bg-gray-700">
             <tr>
               <th className="px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
@@ -380,7 +398,7 @@ const RamosQR = () => {
                 </td>
                 <td className="px-4 py-2 text-sm text-gray-800 dark:text-gray-200 truncate max-w-[200px]">
                   <a
-                    href={`${urlServer}${qr?.category || ""}/${qr?.name || ""}`}
+                    href={`${qr?.url}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:underline"
@@ -391,7 +409,7 @@ const RamosQR = () => {
                 <td className="px-4 py-2 text-sm text-gray-800 dark:text-gray-200">
                   {qr?.category}
                 </td>
-                <td>{qr?.urlToRedirect}</td>
+                <td className="max-w-[400px] truncate">{qr?.urlToRedirect}</td>
                 <td className="px-4 py-2 flex   gap-2">
                   <Button
                     onClick={() => {
@@ -489,7 +507,7 @@ const QRGenerator: React.FC<QRGeneratorProps> = ({
 }) => {
   const iconSize = size * 0.15; // Proporcional al tamaño del QR
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
-
+  console.log(link, "link entrante");
   // Descargar QR como imagen
   const handleDownloadQR = () => {
     const canvas = qrCanvasRef.current;
