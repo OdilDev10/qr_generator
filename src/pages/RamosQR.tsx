@@ -194,6 +194,8 @@ const RamosQR = () => {
 
   return (
     <div className="min-h-screen max-w-6xl w-full mx-auto flex flex-col gap-3 bg-gray-100 dark:bg-gray-700 p-4 text-gray-800 dark:text-gray-100">
+      <QRGenerator link={`https://sirena.do/club-siremas-digital`} />
+
       <CustomModal
         isOpen={isOpenModal}
         onClose={function (): void {
